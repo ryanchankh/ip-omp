@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torchvision
 
-from . import CUB_dataset, custom_dataset
+# from . import CUB_dataset, custom_dataset
 
 
 def _get_scale(square: bool) -> float:
