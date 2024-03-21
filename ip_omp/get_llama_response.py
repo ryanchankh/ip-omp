@@ -30,7 +30,7 @@ def llama_prompt(system_instruction, user_input):
 def format_prompt(class_name, concepts):
     instruction = "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature."
     user = f"Answer yes/no/depends for whether the following concepts are salient for recognizing a '{class_name}': "  
-    user += ", ".join(concepts) + ". "
+    user += "; ".join(concepts) + ". "
     user += "Output format: <concept>: <answer>: <explanation>. Answer as a list."
     return instruction, user
 
@@ -53,10 +53,16 @@ def main(args):
 
     ## Prompt
     label_names = util.get_concepts(f"ip_omp/label_sets/{args.dataset_name}.txt")
-    concept_names = util.get_concepts(f"ip_omp/concept_sets/{args.dataset_name}.txt")
 
     # Generate
-    for label_name in label_names:
+    for label_name in tqdm(label_names[args.start_idx:args.end_idx]):
+        if args.missing:
+            concept_names = util.get_concepts(f"ip_omp/concept_sets_missing/{args.dataset_name}/{label_name}.txt")
+            save_dir = f"ip_omp/outputs/{args.model_name}/{args.dataset_name}_missing"
+        else:
+            concept_names = util.get_concepts(f"ip_omp/concept_sets/{args.dataset_name}.txt")
+            save_dir = f"ip_omp/outputs/{args.model_name}/{args.dataset_name}"
+        
         for batch_i, concept_names_batch in enumerate(np.array_split(concept_names, args.batch_size)):
             prompt = llama_prompt(*format_prompt(label_name, concept_names_batch))
             inputs = tokenizer([prompt], return_tensors="pt", padding=True, truncation='longest_first').to(device)
@@ -69,8 +75,8 @@ def main(args):
 
             out = tokenizer.batch_decode(generate_ids, skip_special_tokens=False, clean_up_tokenization_spaces=False)
 
-            os.makedirs(f"ip_omp/outputs/{args.model_name}/{args.dataset_name}", exist_ok=True)
-            with open(f"ip_omp/outputs/{args.model_name}/{args.dataset_name}/{label_name}_batch{batch_i}.json", "w") as f:
+            os.makedirs(save_dir, exist_ok=True)
+            with open(f"{save_dir}/{label_name}_batch{batch_i}.json", "w") as f:
                 json.dump(out, f)
         
  
@@ -79,6 +85,9 @@ def prarseargs():
     args.add_argument("--model_name", type=str, default="llama-2-13b-chat")
     args.add_argument("--dataset_name", type=str, default="cifar10")
     args.add_argument("--batch_size", type=int, default=1)
+    args.add_argument("--start_idx", type=int, default=None)
+    args.add_argument("--end_idx", type=int, default=None)
+    args.add_argument("--missing", action='store_true', default=False)
     return args.parse_args()
 
 if __name__ == '__main__':
